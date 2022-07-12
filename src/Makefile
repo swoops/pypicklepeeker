@@ -1,5 +1,5 @@
 CC = gcc
-TARGET = pypicpeek
+TARGET = pypicklepeeker
 CFLAGS = -g
 SRC = $(wildcard *.c)
 OBJ = $(SRC:.c=.o)
