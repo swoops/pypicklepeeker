@@ -63,11 +63,25 @@ bool load_frame(Reader *r, size_t offset) {
 static char *get_uni_str(Reader *r, int int_size) {
 	Py_ssize_t len = get_size (r, int_size);
 	if (len > 0) {
-		char *ret = malloc (len + 2);
-		if (ret && getbytes (r, ret, len)) {
+		char *tmp = malloc (len);
+		char *ret = malloc ((len * 4) + 2); // '\' turn into \x5c
+		if (tmp && ret && getbytes (r, tmp, len)) {
+			int i, k = 0;
+			for (i = 0; i < len; i++) {
+				char c = tmp[i];
+				if (c > 0x20 && c < 0x80 && c != '\\') {
+					ret[k++] = tmp[i];
+				} else {
+					snprintf (&ret[k], 5, "\\x%02x", c & 0xff); // 4 for "\\xXX\x00"
+					k += 4;
+				}
+			}
+			ret[k] = 0;
+			free (tmp);
 			return ret; 
 		}
 		free (ret);
+		free (tmp);
 	}
 	return NULL;
 }
