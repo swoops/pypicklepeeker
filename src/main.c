@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <string.h>
 #include "main.h"
 
 static inline size_t reader_offset(Reader *r) {
@@ -78,7 +79,7 @@ static char *get_uni_str(Reader *r, int int_size) {
 			}
 			ret[k] = 0;
 			free (tmp);
-			return ret; 
+			return ret;
 		}
 		free (ret);
 		free (tmp);
@@ -86,7 +87,43 @@ static char *get_uni_str(Reader *r, int int_size) {
 	return NULL;
 }
 
-static int load_counted_binunicode(Reader *r, size_t offset, int size, const char *n) {
+static inline char *reader_line(Reader *r) {
+	int size = 1024;
+	char *line = malloc (1024);
+	if (line) {
+		size_t i = 0;
+		for (;;) {
+			if (i >= size - 7) {
+				size += 1024;
+				char *_tmp = realloc (line, size);
+				if (!_tmp) {
+					free (line);
+					return NULL;
+				}
+				line = _tmp;
+			}
+			char c;
+			if (!getbytes (r, &c, 1)) {
+				free (line);
+				return NULL;
+			}
+			if (c == '\n') {
+				break;
+			}
+			if (c > 0x20 && c < 0x80 && c != '\\' && c != '\'') {
+				line[i++] = c;
+			} else {
+				snprintf (&line[i], 5, "\\x%02x", c & 0xff); // 4 for "\\xXX\x00"
+				i += 4;
+			}
+		}
+		line[i] = 0;
+		return realloc (line, i);
+	}
+	return line;
+}
+
+static bool load_counted_binunicode(Reader *r, size_t offset, int size, const char *n) {
 	char *uni = get_uni_str (r, size);
 	if (uni) {
 		printf ("[0x%03lx] %s %s\n", offset, n, uni);
@@ -96,13 +133,39 @@ static int load_counted_binunicode(Reader *r, size_t offset, int size, const cha
 	return false;
 }
 
+
+static bool op_read_lines(Reader *r, size_t offset, int ln_cnt, const char *n) {
+	// stupid hack...
+	if (ln_cnt < 0 || n == NULL) {
+		return false;
+	}
+	if (ln_cnt == 0) {
+		printf ("[0x%03lx] %s\n", offset, n);
+		return true;
+	}
+
+	char *line = reader_line (r);
+	if (line) {
+		size_t len = strlen (line) + strlen (n) + 32;
+		char *newn = malloc (len);
+		if (newn) {
+			len = snprintf (newn, len, "%s '%s'", n, line);
+			newn = realloc (newn, len);
+			bool ret = op_read_lines (r, offset, --ln_cnt, newn);
+			free (newn);
+			return ret;
+		}
+	}
+	return false;
+}
+
 static inline bool handle_int(Reader *r, size_t offset, int size, const char *n) {
 	Py_ssize_t num = get_size (r, size); // TODO: this is wrong function prbly
-	if (num > 0) {
+	if (num >= 0) {
 		printf ("[0x%03lx] %s 0x%x\n", offset, n, num);
 		return true;
 	}
-	printf ("[0x%3lx] Failed to parse %s at \n", offset, n);
+	printf ("[0x%03lx] Failed to parse %s at \n", offset, n);
 	return false;
 }
 
@@ -133,7 +196,7 @@ static bool process_next_op(Reader *r) {
 	case FLOAT: unhandled(FLOAT);
 	case INT: unhandled(INT);
 	case BININT: unhandled(BININT);
-	case BININT1: 
+	case BININT1:
 		if (handle_int (r, start, 1, "BININT1")) {
 			return true;
 		}
@@ -146,12 +209,21 @@ static bool process_next_op(Reader *r) {
 	case REDUCE: unhandled(REDUCE);
 	case STRING: unhandled(STRING);
 	case BINSTRING: unhandled(BINSTRING);
-	case SHORT_BINSTRING: unhandled(SHORT_BINSTRING);
+	case SHORT_BINSTRING:
+		if (load_counted_binunicode (r, start, 1, "SHORT_BINSTRING")) {
+			return true;
+		}
+		break;
 	case UNICODE: unhandled(UNICODE);
-	case BINUNICODE: unhandled(BINUNICODE);
+	case BINUNICODE:
+		if (load_counted_binunicode (r, start, 4, "SHORT_BINSTRING")) {
+			return true;
+		}
+		break;
 	case APPEND: unhandled(APPEND);
 	case BUILD: unhandled(BUILD);
-	case GLOBAL: unhandled(GLOBAL);
+	case GLOBAL:
+		return op_read_lines (r, start, 2, "GLOBAL");
 	case DICT: unhandled(DICT);
 	case EMPTY_DICT:
 		trivial_op (EMPTY_DICT);
@@ -161,11 +233,16 @@ static bool process_next_op(Reader *r) {
 	case INST: unhandled(INST);
 	case LONG_BINGET: unhandled(LONG_BINGET);
 	case LIST: unhandled(LIST);
-	case EMPTY_LIST: 
+	case EMPTY_LIST:
 		trivial_op (EMPTY_LIST);
 	case OBJ: unhandled(OBJ);
 	case PUT: unhandled(PUT);
-	case BINPUT: unhandled(BINPUT);
+	case BINPUT:
+		if (read_byte_as_int (r, &num)) {
+			printf ("[0x%03lx] BINPUT %d\n", start, num);
+			return true;
+		}
+		break;
 	case LONG_BINPUT: unhandled(LONG_BINPUT);
 	case SETITEM: unhandled(SETITEM);
 	case TUPLE: unhandled(TUPLE);
