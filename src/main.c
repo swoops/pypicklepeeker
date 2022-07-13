@@ -150,6 +150,7 @@ static bool op_read_lines(Reader *r, size_t offset, int ln_cnt, const char *n) {
 		char *newn = malloc (len);
 		if (newn) {
 			len = snprintf (newn, len, "%s '%s'", n, line);
+			free (line);
 			newn = realloc (newn, len);
 			bool ret = op_read_lines (r, offset, --ln_cnt, newn);
 			free (newn);
