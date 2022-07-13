@@ -5,6 +5,8 @@
 #include <string.h>
 #include "main.h"
 
+#define FMTOFF "[0x%03lx]"
+
 static inline size_t reader_offset(Reader *r) {
 	return r->offset;
 }
@@ -32,13 +34,13 @@ static inline Py_ssize_t get_size(Reader *r, int l) {
 	}
 
 	Py_ssize_t ret = 0;
-	while (l--) {
+	int i;
+	for (i = 0; i < l; i++) {
 		char c;
 		if (!getbytes (r, &c, 1)) {
 			return -1;
 		}
-		ret << 8;
-		ret |= c;
+		ret |= c << (8 * i);
 	}
 	return ret;
 }
@@ -57,7 +59,7 @@ bool load_frame(Reader *r, size_t offset) {
 	if (!getbytes (r, (char *)&len, sizeof (len))) {
 		return false;
 	}
-	printf ("[0x%03lx] FRAME 0x%lx\n", offset, len);
+	printf (FMTOFF " FRAME 0x%lx\n", offset, len);
 	return true;
 }
 
@@ -126,7 +128,7 @@ static inline char *reader_line(Reader *r) {
 static bool load_counted_binunicode(Reader *r, size_t offset, int size, const char *n) {
 	char *uni = get_uni_str (r, size);
 	if (uni) {
-		printf ("[0x%03lx] %s '%s'\n", offset, n, uni);
+		printf (FMTOFF " %s '%s'\n", offset, n, uni);
 		free (uni);
 		return true;
 	}
@@ -140,7 +142,7 @@ static bool op_read_lines(Reader *r, size_t offset, int ln_cnt, const char *n) {
 		return false;
 	}
 	if (ln_cnt == 0) {
-		printf ("[0x%03lx] %s\n", offset, n);
+		printf (FMTOFF " %s\n", offset, n);
 		return true;
 	}
 
@@ -163,20 +165,20 @@ static bool op_read_lines(Reader *r, size_t offset, int ln_cnt, const char *n) {
 static inline bool handle_int(Reader *r, size_t offset, int size, const char *n) {
 	Py_ssize_t num = get_size (r, size); // TODO: this is wrong function prbly
 	if (num >= 0) {
-		printf ("[0x%03lx] %s 0x%x\n", offset, n, num);
+		printf (FMTOFF " %s 0x%x\n", offset, n, num);
 		return true;
 	}
-	printf ("[0x%03lx] Failed to parse %s at \n", offset, n);
+	printf (FMTOFF " Failed to parse %s at \n", offset, n);
 	return false;
 }
 
 #define trivial_op(x) { \
-	printf ("[0x%03lx] " #x "\n", start); \
+	printf (FMTOFF " " #x "\n", start); \
 	return true; \
 }
 
 #define unhandled(x) { \
-	printf ("[0x%03lx] UNHANDLED -> " #x "\n", start); \
+	printf (FMTOFF " UNHANDLED -> " #x "\n", start); \
 	return true; \
 }
 static bool process_next_op(Reader *r) {
@@ -204,7 +206,6 @@ static bool process_next_op(Reader *r) {
 		break;
 	case LONG: unhandled(LONG);
 	case BININT2:
-		// WRONG
 		if (handle_int (r, start, 2, "BININT2")) {
 			return true;
 		}
@@ -252,7 +253,7 @@ static bool process_next_op(Reader *r) {
 	case PUT: unhandled(PUT);
 	case BINPUT:
 		if (read_byte_as_int (r, &num)) {
-			printf ("[0x%03lx] BINPUT %d\n", start, num);
+			printf (FMTOFF " BINPUT %d\n", start, num);
 			return true;
 		}
 		break;
@@ -267,7 +268,7 @@ static bool process_next_op(Reader *r) {
 	case BINFLOAT: unhandled(BINFLOAT);
 	case PROTO:
 		if (read_byte_as_int (r, &num)) {
-			printf ("[0x%03lx] PROTO %d\n", start, num);
+			printf (FMTOFF " PROTO %d\n", start, num);
 			return true;
 		}
 		break;
