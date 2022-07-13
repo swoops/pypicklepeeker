@@ -263,8 +263,7 @@ static bool process_next_op(Reader *r) {
 	case OBJ: unhandled(OBJ);
 	case PUT: unhandled(PUT);
 	case BINPUT:
-		if (read_byte_as_int (r, &num)) {
-			printf (FMTOFF " BINPUT %d\n", start, num);
+		if (handle_int (r, start, 1, "BINPUT")) {
 			return true;
 		}
 		break;
