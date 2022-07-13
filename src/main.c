@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "main.h"
+#include <stdint.h>
 
 #define FMTOFF "[0x%03lx]"
 
@@ -168,7 +169,17 @@ static inline bool handle_int(Reader *r, size_t offset, int size, const char *n)
 		printf (FMTOFF " %s 0x%x\n", offset, n, num);
 		return true;
 	}
-	printf (FMTOFF " Failed to parse %s at \n", offset, n);
+	printf (FMTOFF " Failed to parse %s\n", offset, n);
+	return false;
+}
+
+static inline bool handle_float(Reader *r, size_t offset) {
+	int64_t raw;
+	if (getbytes (r, (char *) &raw, sizeof (raw))) {
+		printf (FMTOFF " BINFLOAT 0x%llx (raw bytes)\n", offset, raw);
+		return true;
+	}
+	printf (FMTOFF " Failed to parse float\n", offset);
 	return false;
 }
 
@@ -265,7 +276,8 @@ static bool process_next_op(Reader *r) {
 		trivial_op (EMPTY_TUPLE);
 	case SETITEMS:
 		trivial_op (SETITEMS);
-	case BINFLOAT: unhandled(BINFLOAT);
+	case BINFLOAT:
+		return handle_float (r, start);
 	case PROTO:
 		if (read_byte_as_int (r, &num)) {
 			printf (FMTOFF " PROTO %d\n", start, num);
