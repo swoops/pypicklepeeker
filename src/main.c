@@ -70,7 +70,7 @@ static char *get_uni_str(Reader *r, int int_size) {
 			int i, k = 0;
 			for (i = 0; i < len; i++) {
 				char c = tmp[i];
-				if (c > 0x20 && c < 0x80 && c != '\\') {
+				if (c >= 0x20 && c < 0x80 && c != '\\') {
 					ret[k++] = tmp[i];
 				} else {
 					snprintf (&ret[k], 5, "\\x%02x", c & 0xff); // 4 for "\\xXX\x00"
@@ -126,7 +126,7 @@ static inline char *reader_line(Reader *r) {
 static bool load_counted_binunicode(Reader *r, size_t offset, int size, const char *n) {
 	char *uni = get_uni_str (r, size);
 	if (uni) {
-		printf ("[0x%03lx] %s %s\n", offset, n, uni);
+		printf ("[0x%03lx] %s '%s'\n", offset, n, uni);
 		free (uni);
 		return true;
 	}
@@ -203,8 +203,13 @@ static bool process_next_op(Reader *r) {
 		}
 		break;
 	case LONG: unhandled(LONG);
-	case BININT2: unhandled(BININT2);
-	case NONE: unhandled(NONE);
+	case BININT2:
+		if (handle_int (r, start, 2, "BININT2")) {
+			return true;
+		}
+		break;
+	case NONE:
+		trivial_op (NONE);
 	case PERSID: unhandled(PERSID);
 	case BINPERSID: unhandled(BINPERSID);
 	case REDUCE: unhandled(REDUCE);
@@ -222,7 +227,8 @@ static bool process_next_op(Reader *r) {
 		}
 		break;
 	case APPEND: unhandled(APPEND);
-	case BUILD: unhandled(BUILD);
+	case BUILD:
+		trivial_op (BUILD);
 	case GLOBAL:
 		return op_read_lines (r, start, 2, "GLOBAL");
 	case DICT: unhandled(DICT);
@@ -230,7 +236,11 @@ static bool process_next_op(Reader *r) {
 		trivial_op (EMPTY_DICT);
 	case APPENDS: unhandled(APPENDS);
 	case GET: unhandled(GET);
-	case BINGET: unhandled(BINGET);
+	case BINGET:
+		if (handle_int (r, start, 1, "BINGET")) {
+			return true;
+		}
+		break;
 	case INST: unhandled(INST);
 	case LONG_BINGET: unhandled(LONG_BINGET);
 	case LIST: unhandled(LIST);
@@ -245,10 +255,13 @@ static bool process_next_op(Reader *r) {
 		}
 		break;
 	case LONG_BINPUT: unhandled(LONG_BINPUT);
-	case SETITEM: unhandled(SETITEM);
+	case SETITEM:
+		trivial_op (SETITEM);
 	case TUPLE: unhandled(TUPLE);
-	case EMPTY_TUPLE: unhandled(EMPTY_TUPLE);
-	case SETITEMS: unhandled(SETITEMS);
+	case EMPTY_TUPLE:
+		trivial_op (EMPTY_TUPLE);
+	case SETITEMS:
+		trivial_op (SETITEMS);
 	case BINFLOAT: unhandled(BINFLOAT);
 	case PROTO:
 		if (read_byte_as_int (r, &num)) {
@@ -256,15 +269,21 @@ static bool process_next_op(Reader *r) {
 			return true;
 		}
 		break;
-	case NEWOBJ: unhandled(NEWOBJ);
+	case NEWOBJ:
+		trivial_op (NEWOBJ);
 	case EXT1: unhandled(EXT1);
 	case EXT2: unhandled(EXT2);
 	case EXT4: unhandled(EXT4);
-	case TUPLE1: unhandled(TUPLE1);
-	case TUPLE2: unhandled(TUPLE2);
-	case TUPLE3: unhandled(TUPLE3);
-	case NEWTRUE: unhandled(NEWTRUE);
-	case NEWFALSE: unhandled(NEWFALSE);
+	case TUPLE1:
+		trivial_op (TUPLE1);
+	case TUPLE2:
+		unhandled(TUPLE2);
+	case TUPLE3:
+		unhandled(TUPLE3);
+	case NEWTRUE:
+		trivial_op (NEWTRUE);
+	case NEWFALSE:
+		trivial_op (NEWFALSE);
 	case LONG1: unhandled(LONG1);
 	case LONG4: unhandled(LONG4);
 	case BINBYTES: unhandled(BINBYTES);
