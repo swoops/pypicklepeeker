@@ -63,7 +63,7 @@ bool load_frame(Reader *r, size_t offset) {
 
 static char *get_uni_str(Reader *r, int int_size) {
 	Py_ssize_t len = get_size (r, int_size);
-	if (len > 0) {
+	if (len >= 0) {
 		char *tmp = malloc (len);
 		char *ret = malloc ((len * 4) + 2); // '\' turn into \x5c
 		if (tmp && ret && getbytes (r, tmp, len)) {
@@ -204,6 +204,7 @@ static bool process_next_op(Reader *r) {
 		break;
 	case LONG: unhandled(LONG);
 	case BININT2:
+		// WRONG
 		if (handle_int (r, start, 2, "BININT2")) {
 			return true;
 		}
@@ -234,7 +235,8 @@ static bool process_next_op(Reader *r) {
 	case DICT: unhandled(DICT);
 	case EMPTY_DICT:
 		trivial_op (EMPTY_DICT);
-	case APPENDS: unhandled(APPENDS);
+	case APPENDS:
+		trivial_op (APPENDS);
 	case GET: unhandled(GET);
 	case BINGET:
 		if (handle_int (r, start, 1, "BINGET")) {
@@ -277,9 +279,9 @@ static bool process_next_op(Reader *r) {
 	case TUPLE1:
 		trivial_op (TUPLE1);
 	case TUPLE2:
-		unhandled(TUPLE2);
+		trivial_op (TUPLE2);
 	case TUPLE3:
-		unhandled(TUPLE3);
+		trivial_op (TUPLE3);
 	case NEWTRUE:
 		trivial_op (NEWTRUE);
 	case NEWFALSE:
